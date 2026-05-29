@@ -1,64 +1,59 @@
 """
 Dask scheduler — runs inside the Apptainer container on a compute node.
 
-After the scheduler is up it submits the worker jobs to HTCondor directly,
-so the submit node only needs to run client.py.
+Uses HTCondorCluster to submit and manage worker jobs, so no manual
+condor_submit calls are needed. Writes the scheduler address to a shared
+file for client.py to read, then waits until client.py signals it to stop.
 """
-import asyncio
 import pathlib
 import socket
-import subprocess
-import tempfile
+import sys
+import time
 
-from distributed import Scheduler
+from dask_jobqueue import HTCondorCluster
 
 # --- configuration -----------------------------------------------------------
 
-CONTAINER_IMAGE  = "/scratch/hpcdat/containers/dask_hello_world.sif"
-CONTAINER_PYTHON = "/usr/local/bin/python3"
-SCHEDULER_FILE   = "/scratch/hpcdat/dask-scheduler.json"
-N_WORKERS        = 4
-
-SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
+CONTAINER_IMAGE = "/scratch/hpcdat/containers/dask_hello_world.sif"
+SCHEDULER_FILE  = "/scratch/hpcdat/dask-scheduler.json"
+STOP_FILE       = "/scratch/hpcdat/dask-stop"
+N_WORKERS       = 4
 
 # -----------------------------------------------------------------------------
 
 
-def submit_workers(scheduler_address: str) -> None:
-    submit_text = f"""\
-universe          = vanilla
-executable        = {CONTAINER_PYTHON}
-arguments         = {SCRIPT_DIR}/worker_job.py {scheduler_address}
-+SingularityImage = "{CONTAINER_IMAGE}"
-request_cpus      = 1
-request_memory    = 2GB
-request_disk      = 1GB
-initialdir        = {SCRIPT_DIR}
-log               = logs/worker.log
-output            = logs/worker-$(Process).out
-error             = logs/worker-$(Process).err
-queue {N_WORKERS}
-"""
-    with tempfile.NamedTemporaryFile("w", suffix=".sub", delete=False) as f:
-        f.write(submit_text)
-        path = f.name
-
-    result = subprocess.run(
-        ["condor_submit", path], capture_output=True, text=True, check=True
+def main() -> None:
+    cluster = HTCondorCluster(
+        cores=1,
+        memory="2GB",
+        disk="1GB",
+        death_timeout=60,
+        # sys.executable is the container's Python — workers run the same image
+        python=sys.executable,
+        scheduler_options={"host": socket.gethostname()},
+        job_extra_directives={
+            "+SingularityImage": f'"{CONTAINER_IMAGE}"',
+            "request_cpus": "1",
+        },
+        worker_extra_args=["--nthreads", "1"],
     )
-    print(result.stdout.strip(), flush=True)
+    cluster.scale(N_WORKERS)
 
+    pathlib.Path(SCHEDULER_FILE).write_text(cluster.scheduler_address)
+    print(f"Scheduler : {cluster.scheduler_address}", flush=True)
+    print(f"Dashboard : {cluster.dashboard_link}", flush=True)
+    print(f"Waiting for stop signal ({STOP_FILE})...", flush=True)
 
-async def run() -> None:
-    async with Scheduler(host=socket.gethostname(), port=8786) as scheduler:
-        pathlib.Path(SCHEDULER_FILE).write_text(scheduler.address)
-        print(f"Scheduler listening at {scheduler.address}", flush=True)
-
-        print(f"Submitting {N_WORKERS} worker jobs...", flush=True)
-        submit_workers(scheduler.address)
-
-        await scheduler.finished()
+    stop = pathlib.Path(STOP_FILE)
+    stop.unlink(missing_ok=True)
+    try:
+        while not stop.exists():
+            time.sleep(5)
+    finally:
+        cluster.close()
+        pathlib.Path(SCHEDULER_FILE).unlink(missing_ok=True)
+        stop.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
-    asyncio.run(run())
+    main()

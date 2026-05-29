@@ -6,8 +6,10 @@
 
 initialdir        = /scratch/hpcdat/dask_htcondor_tests/htcondor_scheduler
 
-universe          = vanilla
-executable        = /usr/local/bin/python3
+# HTCondor validates the executable on the submit node before the container starts,
+# so the path must exist there. /usr/bin/python3 is standard on Debian/Ubuntu nodes.
+# The container image symlinks /usr/bin/python3 -> /usr/local/bin/python3 for consistency.
+executable        = /usr/bin/python3
 arguments         = scheduler_job.py
 +SingularityImage = "/scratch/hpcdat/containers/dask_hello_world.sif"
 

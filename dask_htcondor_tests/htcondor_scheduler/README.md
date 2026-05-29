@@ -53,6 +53,9 @@ Also verify `CONTAINER_IMAGE` and `SCHEDULER_FILE` in `scheduler_job.py` match y
 ## 3. Set up the submit-node environment
 
 ```bash
+# Make the wrapper scripts executable (only needed once after cloning)
+chmod +x run_scheduler.sh run_worker.sh
+
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt

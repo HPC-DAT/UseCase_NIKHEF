@@ -2,7 +2,8 @@
 Dask client — runs on the submit node.
 
 Waits for the scheduler (started via `condor_submit dask.sub`) to write its
-address to SCHEDULER_FILE, then connects and runs the computation.
+address to SCHEDULER_FILE, connects, runs the computation, then writes
+STOP_FILE to signal the scheduler job to shut down.
 """
 import pathlib
 import time
@@ -11,6 +12,7 @@ import numpy as np
 from distributed import Client
 
 SCHEDULER_FILE = "/scratch/hpcdat/dask-scheduler.json"
+STOP_FILE      = "/scratch/hpcdat/dask-stop"
 
 
 def estimate_pi(n_samples: int, seed: int) -> float:
@@ -55,6 +57,9 @@ def main() -> None:
     print(f"Pi estimate   : {pi_estimate:.6f}")
     print(f"Reference     : {np.pi:.6f}")
     print(f"Error         : {abs(pi_estimate - np.pi):.6f}")
+
+    # Signal the scheduler job to shut down
+    pathlib.Path(STOP_FILE).touch()
 
 
 if __name__ == "__main__":
