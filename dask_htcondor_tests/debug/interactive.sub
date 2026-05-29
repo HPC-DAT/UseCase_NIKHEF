@@ -1,0 +1,69 @@
+############################################################
+# interactive.sub
+# Interactive HTCondor job running inside a Singularity/
+# Apptainer container.
+#
+# Launch with:
+#     condor_submit -interactive interactive.sub
+#
+# HTCondor will match a slot, pull/stage the container, and
+# drop you into an interactive shell *inside* the container.
+############################################################
+
+# Singularity jobs run in the vanilla universe (NOT docker).
+universe = vanilla
+
+# ----- Container image -------------------------------------
+# Pick ONE of the following styles for +SingularityImage:
+#
+#   A local .sif file (must be readable on the execute node):
+#       +SingularityImage = "/cvmfs/singularity.opensciencegrid.org/library/ubuntu:22.04"
+#
+#   A CVMFS-distributed image (common on OSG/grid sites):
+#       +SingularityImage = "/cvmfs/singularity.opensciencegrid.org/htcondor/htc-minimal-el9:latest"
+#
+#   A docker:// reference (Condor/Singularity will convert it):
+#       +SingularityImage = "docker://ubuntu:22.04"
+#
++SingularityImage = "/scratch/hpcdat/dask_htcondor_tests/htcondor_scheduler"
+
+# ----- Resources -------------------------------------------
+request_cpus   = 1
+request_memory = 1024
+request_disk   = 4096
+
+# ----- Logging ---------------------------------------------
+# Useful even for interactive jobs to debug start-up failures.
+output = interactive.$(ClusterId).out
+error  = interactive.$(ClusterId).err
+log    = interactive.$(ClusterId).log
+
+# ----- Targeting / nodev avoidance -------------------------
+# Only match nodes that actually advertise Singularity support.
+requirements = (HasSingularity == true)
+
+# If your site's execute dir is mounted "nodev" (the cause of
+# the earlier "Singularity test failed ... nodev" error), ask
+# Singularity to isolate /dev instead of bind-mounting the
+# host's. Uncomment ONE of these if the test keeps failing:
+#
+#   +SingularityArgs = "--contain"
+#   +SingularityBindCVMFS = false
+#
+# An admin-side alternative is to remove `nodev` from the
+# filesystem hosting EXECUTE, or point EXECUTE at a partition
+# without it.
+
+# ----- Bind mounts (optional) ------------------------------
+# Make extra host paths visible inside the container.
+# Format is host:container[:ro]; comma-separated for several.
+#
+#   +SingularityBind = "/data:/data:ro,/scratch:/scratch"
+
+# Copy this helper into the job sandbox so you can run it
+# inside the interactive shell to confirm the environment.
+# transfer_input_files = container_check.sh
+should_transfer_files = YES
+when_to_transfer_output = ON_EXIT
+
+queue

@@ -1,27 +1,37 @@
 # HTCondor submit file for the Dask scheduler.
-# The scheduler starts, writes its address to SCHEDULER_FILE, then submits
-# the worker jobs itself.
-#
-# Edit initialdir to match the location of this file on your cluster.
+# The scheduler starts, reports its address via condor_chirp, then submits
+# worker jobs itself. No shared filesystem is required.
+initialdir = /scratch/hpcdat/tkok/UseCase_NIKHEF/dask_htcondor_tests/htcondor_scheduler
 
-initialdir        = /scratch/hpcdat/dask_htcondor_tests/htcondor_scheduler
+universe = vanilla
+Requirements      = HasSingularity
 
-# HTCondor validates the executable on the submit node before the container starts,
-# so the path must exist there. /usr/bin/python3 is standard on Debian/Ubuntu nodes.
-# The container image symlinks /usr/bin/python3 -> /usr/local/bin/python3 for consistency.
+# HTCondor validates the executable on the submit node before the container
+# starts. /usr/bin/python3 is standard on Debian/Ubuntu submit nodes.
+# The container symlinks /usr/bin/python3 -> /usr/local/bin/python3.
 executable        = /usr/bin/python3
 arguments         = scheduler_job.py
 +SingularityImage = "/scratch/hpcdat/containers/dask_hello_world.sif"
 
-# condor_submit must be reachable inside the container so the scheduler can
-# submit workers. On most clusters Apptainer bind-mounts /usr automatically;
-# if not, uncomment and adjust the line below.
+# condor_chirp lets the scheduler write its address back to the submit node
+# as a custom ClassAd attribute (DaskSchedulerAddress). Required for chirp.
++WantIOProxy      = True
+
+# Transfer scheduler_job.py to the execute node.
+# No shared filesystem is needed.
+should_transfer_files   = yes
+transfer_input_files    = scheduler_job.py
+when_to_transfer_output = on_exit_or_evict
+
+# condor_submit (called by the scheduler to launch workers) must be reachable
+# inside the container. Most clusters bind-mount /usr automatically via
+# Apptainer; uncomment the line below if condor_submit is not found.
 # +SingularityBindPath = "/usr/bin/condor_submit, /usr/lib/condor, /etc/condor"
 
 request_cpus      = 1
 request_memory    = 1GB
 request_disk      = 1GB
-log               = logs/scheduler.log
-output            = logs/scheduler.out
-error             = logs/scheduler.err
+log               = scheduler.log
+output            = scheduler.out
+error             = scheduler.err
 queue 1
