@@ -1,0 +1,25 @@
+# HTCondor submit file for the Dask scheduler.
+# The scheduler starts, writes its address to SCHEDULER_FILE, then submits
+# the worker jobs itself.
+#
+# Edit initialdir to match the location of this file on your cluster.
+
+initialdir        = /scratch/hpcdat/dask_htcondor_tests/htcondor_scheduler
+
+universe          = vanilla
+executable        = /usr/local/bin/python3
+arguments         = scheduler_job.py
++SingularityImage = "/scratch/hpcdat/containers/dask_hello_world.sif"
+
+# condor_submit must be reachable inside the container so the scheduler can
+# submit workers. On most clusters Apptainer bind-mounts /usr automatically;
+# if not, uncomment and adjust the line below.
+# +SingularityBindPath = "/usr/bin/condor_submit, /usr/lib/condor, /etc/condor"
+
+request_cpus      = 1
+request_memory    = 1GB
+request_disk      = 1GB
+log               = logs/scheduler.log
+output            = logs/scheduler.out
+error             = logs/scheduler.err
+queue 1
