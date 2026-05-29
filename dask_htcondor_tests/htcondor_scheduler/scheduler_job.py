@@ -18,7 +18,7 @@ from dask_jobqueue import HTCondorCluster
 
 # --- configuration -----------------------------------------------------------
 
-CONTAINER_IMAGE = "/scratch/hpcdat/containers/dask_hello_world.sif"
+CONTAINER_IMAGE = "/scratch/hpcdat/containers/dask_htcondor.sif"
 N_WORKERS       = 4
 
 # -----------------------------------------------------------------------------

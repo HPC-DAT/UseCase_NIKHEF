@@ -11,7 +11,7 @@ Requirements      = HasSingularity
 # The container symlinks /usr/bin/python3 -> /usr/local/bin/python3.
 executable        = /usr/bin/python3
 arguments         = scheduler_job.py
-+SingularityImage = "/scratch/hpcdat/containers/dask_hello_world.sif"
++SingularityImage = "/scratch/hpcdat/containers/dask_htcondor.sif"
 
 # condor_chirp lets the scheduler write its address back to the submit node
 # as a custom ClassAd attribute (DaskSchedulerAddress). Required for chirp.

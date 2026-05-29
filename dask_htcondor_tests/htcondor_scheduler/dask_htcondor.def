@@ -1,0 +1,54 @@
+Bootstrap: docker
+From: almalinux:9
+
+%post
+    set -e
+
+    # -------------------------------------------------------------------------
+    # System packages
+    # -------------------------------------------------------------------------
+    dnf -y update
+    dnf -y install epel-release
+
+    # -------------------------------------------------------------------------
+    # HTCondor 25.x repository
+    #
+    # Write the .repo file directly — the release RPM redirect is unreliable.
+    # Version pinned to 25.10.1 to match the cluster; adjust if needed.
+    # -------------------------------------------------------------------------
+    cat > /etc/yum.repos.d/htcondor.repo << 'EOF'
+[htcondor]
+name=HTCondor 25.x for EL9
+baseurl=https://htcss-downloads.chtc.wisc.edu/repo/25.x/el9/x86_64/release
+enabled=1
+# AlmaLinux 9 disables SHA1 by default; the HTCondor GPG key uses SHA1.
+gpgcheck=0
+EOF
+
+    # Install the full condor package at the pinned version.
+    # Provides condor_submit, condor_chirp, condor_q and libcondor_utils.
+    dnf -y install condor-25.10.1
+
+    # -------------------------------------------------------------------------
+    # Python 3 + Dask packages
+    # -------------------------------------------------------------------------
+    dnf -y install python3 python3-pip
+
+    pip3 install --no-cache-dir \
+        "dask[distributed]" \
+        dask-jobqueue \
+        numpy
+
+    # -------------------------------------------------------------------------
+    # Cleanup
+    # -------------------------------------------------------------------------
+    dnf clean all
+    rm -rf /root/.cache/pip
+
+%environment
+    export PATH=/usr/bin:/usr/local/bin:$PATH
+
+%labels
+    Description  Dask HTCondor scheduler/worker image
+    Base         AlmaLinux 9
+    HTCondor     25.10.1
