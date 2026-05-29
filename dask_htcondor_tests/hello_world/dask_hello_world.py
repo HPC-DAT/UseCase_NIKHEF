@@ -3,10 +3,16 @@ Simple Dask workflow using HTCondorCluster.
 
 Runs a Monte Carlo pi estimation distributed across HTCondor workers.
 """
+import socket
+
 import dask
-import dask.array as da
 import numpy as np
 from dask_jobqueue import HTCondorCluster
+
+# Path to the Apptainer/Singularity image on the shared filesystem
+CONTAINER_IMAGE = "/scratch/hpcdat/containers/dask_hello_world.sif"
+# Python executable inside the container
+CONTAINER_PYTHON = "/usr/local/bin/python3"
 
 
 def estimate_pi(n_samples: int, seed: int) -> float:
@@ -20,11 +26,14 @@ def main():
         cores=1,
         memory="2GB",
         disk="1GB",
-        # Worker lifetime: kill if scheduler unreachable for 60s
         death_timeout=60,
+        python=CONTAINER_PYTHON,
+        # Bind scheduler to the submit node's hostname so workers can reach it
+        scheduler_options={"host": socket.gethostname()},
         job_extra_directives={
             "universe": "vanilla",
             "request_cpus": "1",
+            "+SingularityImage": f'"{CONTAINER_IMAGE}"',
         },
         worker_extra_args=["--nthreads", "1"],
     )
@@ -59,6 +68,6 @@ def main():
 
 
 if __name__ == "__main__":
-    import dask.distributed  # noqa: F401 — ensure distributed is imported
+    import dask.distributed  # noqa: F401
 
     main()
