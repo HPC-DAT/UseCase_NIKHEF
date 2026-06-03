@@ -1,0 +1,61 @@
+Bootstrap: docker
+From: almalinux:9
+
+%post
+    set -e
+
+    # -------------------------------------------------------------------------
+    # Minimal system tools
+    # -------------------------------------------------------------------------
+    dnf -y update
+    dnf -y install git
+    dnf clean all
+
+    # -------------------------------------------------------------------------
+    # Miniforge (conda + mamba from conda-forge)
+    # -------------------------------------------------------------------------
+    curl -Lo /tmp/miniforge.sh \
+        https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh
+    bash /tmp/miniforge.sh -b -p /opt/conda
+    rm /tmp/miniforge.sh
+
+    # -------------------------------------------------------------------------
+    # Python 3.12 + Dask + HTCondor tools — all from conda-forge.
+    #
+    # conda-forge packages target GLIBC 2.17, so condor_chirp, condor_submit,
+    # and python3 all run on execute nodes with older GLIBC without issues.
+    # -------------------------------------------------------------------------
+    /opt/conda/bin/mamba install -y -c conda-forge \
+        python=3.12 \
+        htcondor \
+        dask \
+        distributed \
+        dask-jobqueue \
+        numpy \
+        dask-jobqueue \
+        dask-labextension \
+        dask[complete] \
+        jupyterlab-git \
+        jupyterlab>=3 \
+        python-graphviz
+
+    /opt/conda/bin/conda clean -afy
+
+%environment
+    export PATH=/opt/conda/bin:$PATH
+    # Full conda initialisation so `conda activate` works inside the container.
+    . /opt/conda/etc/profile.d/conda.sh
+    conda activate base
+
+%runscript
+    # Activated by `apptainer run image.sif [command [args...]]`.
+    # Sources conda so the base environment is active, then runs the command.
+    . /opt/conda/etc/profile.d/conda.sh
+    conda activate base
+    exec "$@"
+
+%labels
+    Description  Dask HTCondor scheduler/worker image
+    Base         AlmaLinux 9
+    HTCondor     conda-forge (GLIBC 2.17 compatible)
+    Python       3.12 (conda-forge / Miniforge)

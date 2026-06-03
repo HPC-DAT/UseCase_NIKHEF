@@ -1,0 +1,33 @@
+# HTCondor submit file for the Dask scheduler.
+# The scheduler starts, reports its address via condor_chirp, then submits
+# worker jobs itself. No shared filesystem is required.
+initialdir = /scratch/hpcdat/tkok/UseCase_NIKHEF/dask_htcondor_tests/htcondor_scheduler
+
+universe          = vanilla
+Requirements      = HasSingularity
++SingularityImage = "/scratch/hpcdat/containers/dask_htcondor.sif"
+
+# Use the container's conda Python directly.
+# transfer_executable = false: HTCondor does not copy this binary from the
+# submit node (it doesn't exist there). The path resolves inside the container,
+# where conda Python targets GLIBC 2.17 — compatible with any execute node.
+executable          = /opt/conda/bin/python3
+arguments           = scheduler_job.py
+transfer_executable = false
+
+# condor_chirp lets the scheduler write its address back to the submit node
+# as a custom ClassAd attribute (DaskSchedulerAddress). Required for chirp.
++WantIOProxy = True
+
+# Transfer scheduler_job.py to the execute node's sandbox.
+should_transfer_files   = yes
+transfer_input_files    = scheduler_job.py
+when_to_transfer_output = on_exit_or_evict
+
+request_cpus   = 1
+request_memory = 1GB
+request_disk   = 1GB
+log            = scheduler.log
+output         = scheduler.out
+error          = scheduler.err
+queue 1
