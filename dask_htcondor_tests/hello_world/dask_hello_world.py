@@ -32,7 +32,7 @@ def main():
         scheduler_options={"host": socket.gethostname()},
         job_extra_directives={
             "universe": "vanilla",
-            "request_cpus": "1",
+            # "request_cpus": "1",
             "+SingularityImage": f'"{CONTAINER_IMAGE}"',
         },
         worker_extra_args=["--nthreads", "1"],

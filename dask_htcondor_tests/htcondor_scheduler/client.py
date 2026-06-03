@@ -1,35 +1,18 @@
 """
 Dask client — runs on the submit node.
 
-Usage: python client.py <scheduler_cluster_id>
+Usage: python client.py <scheduler_address>
+Example: python client.py tcp://submit.example.org:8786
 
-Polls condor_q for the DaskSchedulerAddress ClassAd attribute written by the
-scheduler job via condor_chirp. Runs the computation, then calls condor_rm to
-shut the scheduler (and its workers) down.
+Connects to a running Dask scheduler, submits the pi estimation tasks,
+and prints results. The scheduler address is printed by scheduler_job.py
+at startup.
 """
-import json
 import subprocess
 import sys
-import time
 
 import numpy as np
 from distributed import Client
-
-
-def get_scheduler_address(cluster_id: str) -> str:
-    print(f"Waiting for scheduler address (cluster {cluster_id})...")
-    for _ in range(120):
-        result = subprocess.run(
-            ["condor_q", cluster_id, "-json"],
-            capture_output=True, text=True,
-        )
-        jobs = json.loads(result.stdout or "[]")
-        if jobs and "DaskSchedulerAddress" in jobs[0]:
-            return jobs[0]["DaskSchedulerAddress"].strip('"')
-        time.sleep(2)
-    raise RuntimeError(
-        f"Scheduler (cluster {cluster_id}) did not report its address within 120 s"
-    )
 
 
 def estimate_pi(n_samples: int, seed: int) -> float:
@@ -40,15 +23,15 @@ def estimate_pi(n_samples: int, seed: int) -> float:
 
 def main() -> None:
     if len(sys.argv) != 2:
-        print(f"Usage: python {sys.argv[0]} <scheduler_cluster_id>")
+        print(f"Usage: python {sys.argv[0]} <scheduler_address>, e.g., 'tcp://127.0.1.1:24065'")
         sys.exit(1)
 
-    cluster_id = sys.argv[1]
-    scheduler_address = get_scheduler_address(cluster_id)
+    scheduler_address = sys.argv[1]
+    # scheduler_address = "tcp://127.0.1.1:24065"
     print(f"Scheduler address: {scheduler_address}")
 
     with Client(scheduler_address) as client:
-        client.wait_for_workers(n_workers=1, timeout=120)
+        # client.wait_for_workers(n_workers=1, timeout=120)
         print(f"Connected workers: {len(client.scheduler_info()['workers'])}")
         print(f"Dashboard:         {client.dashboard_link}\n")
 
@@ -69,9 +52,6 @@ def main() -> None:
     print(f"Pi estimate   : {pi_estimate:.6f}")
     print(f"Reference     : {np.pi:.6f}")
     print(f"Error         : {abs(pi_estimate - np.pi):.6f}")
-
-    print(f"\nShutting down scheduler job {cluster_id}...")
-    subprocess.run(["condor_rm", cluster_id], check=True)
 
 
 if __name__ == "__main__":

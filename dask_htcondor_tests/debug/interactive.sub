@@ -25,7 +25,7 @@ universe = vanilla
 #   A docker:// reference (Condor/Singularity will convert it):
 #       +SingularityImage = "docker://ubuntu:22.04"
 #
-+SingularityImage = "/scratch/hpcdat/dask_htcondor_tests/htcondor_scheduler"
++SingularityImage = "/scratch/hpcdat/containers/dask_htcondor.sif"
 
 # ----- Resources -------------------------------------------
 request_cpus   = 1

@@ -31,27 +31,28 @@ def main() -> None:
         disk="1GB",
         death_timeout=60,
         # sys.executable is the container's Python; workers run the same image
-        python=sys.executable,
+        # python=sys.executable,
         scheduler_options={"host": socket.gethostname()},
         job_extra_directives={
             "+SingularityImage": f'"{CONTAINER_IMAGE}"',
-            "request_cpus": "1",
             # Transfer the generated worker script to each execute node so no
             # shared filesystem is needed between the scheduler and workers.
             "should_transfer_files": "yes",
             "when_to_transfer_output": "on_exit",
-        },
-        worker_extra_args=["--nthreads", "1"],
+            "log":     "worker.log",
+            "output":  "worker.out",
+            "error":   "worker.err",
+        }
     )
     cluster.scale(N_WORKERS)
 
     # Write address into the job's ClassAd so client.py can read it with
     # condor_q <cluster_id> -json without a shared filesystem.
-    subprocess.run(
-        ["condor_chirp", "set_job_attr",
-         "DaskSchedulerAddress", f'"{cluster.scheduler_address}"'],
-        check=True,
-    )
+    # subprocess.run(
+    #     ["condor_chirp", "set_job_attr",
+    #      "DaskSchedulerAddress", f'"{cluster.scheduler_address}"'],
+    #     check=True,
+    # )
     print(f"Scheduler : {cluster.scheduler_address}", flush=True)
     print(f"Dashboard : {cluster.dashboard_link}", flush=True)
     print("Running — send condor_rm to shut down.", flush=True)

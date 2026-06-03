@@ -1,7 +1,7 @@
 # Dask HTCondor Hello World
 
 Estimates π using a Monte Carlo method distributed across HTCondor workers via `dask-jobqueue`.
-Workers run inside an Apptainer container so the environment is self-contained and independent of the compute nodes.
+The scheduler runs on the submit node; workers run inside an Apptainer container on compute nodes.
 
 ## Prerequisites
 
@@ -12,16 +12,16 @@ Workers run inside an Apptainer container so the environment is self-contained a
 
 ## 1. Build the container image
 
+Container definitions are in [`../containers/`](../containers/).
+
 ```bash
+cd ../containers
 apptainer build dask_hello_world.sif dask_hello_world.def
-```
-
-Copy the image to a location reachable by all worker nodes, then update `CONTAINER_IMAGE` in `dask_hello_world.py` to match:
-
-```{bash}
 mkdir -p /scratch/hpcdat/containers/
 cp dask_hello_world.sif /scratch/hpcdat/containers/
 ```
+
+If you use a different path, update `CONTAINER_IMAGE` in `dask_hello_world.py`:
 
 ```python
 CONTAINER_IMAGE = "/scratch/hpcdat/containers/dask_hello_world.sif"
@@ -29,7 +29,7 @@ CONTAINER_IMAGE = "/scratch/hpcdat/containers/dask_hello_world.sif"
 
 ## 2. Set up the submit-node environment
 
-The venv is only needed to run the submit-side script (scheduler + client). Workers use the container.
+The venv is only needed to run the submit-side script. Workers use the container.
 
 ```bash
 python3 -m venv .venv
@@ -51,7 +51,8 @@ The script will:
 4. Print the π estimate and error when all tasks complete
 
 Example output:
-```
+
+```text
 Dashboard: http://194.171.96.60:8787/status
 Waiting for workers...
 Connected workers: 4

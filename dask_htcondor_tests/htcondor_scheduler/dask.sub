@@ -3,35 +3,31 @@
 # worker jobs itself. No shared filesystem is required.
 initialdir = /scratch/hpcdat/tkok/UseCase_NIKHEF/dask_htcondor_tests/htcondor_scheduler
 
-universe = vanilla
+universe          = vanilla
 Requirements      = HasSingularity
-
-# HTCondor validates the executable on the submit node before the container
-# starts. /usr/bin/python3 is standard on Debian/Ubuntu submit nodes.
-# The container symlinks /usr/bin/python3 -> /usr/local/bin/python3.
-executable        = /usr/bin/python3
-arguments         = scheduler_job.py
 +SingularityImage = "/scratch/hpcdat/containers/dask_htcondor.sif"
+
+# Use the container's conda Python directly.
+# transfer_executable = false: HTCondor does not copy this binary from the
+# submit node (it doesn't exist there). The path resolves inside the container,
+# where conda Python targets GLIBC 2.17 — compatible with any execute node.
+executable          = /opt/conda/bin/python3
+arguments           = scheduler_job.py
+transfer_executable = false
 
 # condor_chirp lets the scheduler write its address back to the submit node
 # as a custom ClassAd attribute (DaskSchedulerAddress). Required for chirp.
-+WantIOProxy      = True
++WantIOProxy = True
 
-# Transfer scheduler_job.py to the execute node.
-# No shared filesystem is needed.
+# Transfer scheduler_job.py to the execute node's sandbox.
 should_transfer_files   = yes
 transfer_input_files    = scheduler_job.py
 when_to_transfer_output = on_exit_or_evict
 
-# condor_submit (called by the scheduler to launch workers) must be reachable
-# inside the container. Most clusters bind-mount /usr automatically via
-# Apptainer; uncomment the line below if condor_submit is not found.
-# +SingularityBindPath = "/usr/bin/condor_submit, /usr/lib/condor, /etc/condor"
-
-request_cpus      = 1
-request_memory    = 1GB
-request_disk      = 1GB
-log               = scheduler.log
-output            = scheduler.out
-error             = scheduler.err
+request_cpus   = 1
+request_memory = 1GB
+request_disk   = 1GB
+log            = scheduler.log
+output         = scheduler.out
+error          = scheduler.err
 queue 1
