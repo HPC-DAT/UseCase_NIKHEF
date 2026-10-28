@@ -47,6 +47,38 @@ Switching between laptop and cluster changes only two settings in the notebook:
 | `DATA` | `"skim"`: one local file | `"remote"`: AGC files read over HTTPS (UNL) or XRootD (EOS) |
 | Environment | conda environment from `environment.yml` | Apptainer image built by GitHub Actions |
 
+## Decisions
+
+Decided by the project (Tim Kok, 28 Oct 2026):
+
+| Decision | Why / notes |
+|---|---|
+| Base the blueprint on the AGC CMS ttbar analysis | Public data, a well-known HEP workload, and published reference histograms to validate against |
+| RDataFrame first; a coffea/uproot notebook later | Both stacks are common in HEP; start with one and keep the same inputs and validation for the second |
+| One "fat" container image with both stacks, separate notebooks per approach | One image to build and maintain on Spider/Snellius; researchers pick the notebook that matches their stack |
+| Notebook-based, connecting to the Dask cluster that RS-DAT provides | RS-DAT runs Jupyter and the Dask scheduler as a Slurm job; users scale the cluster from Jupyter and work in notebooks |
+| Build the image with the RS-DAT JDS_development_template scaffolding (GitHub Actions → Apptainer image on GHCR) | Standard RS-DAT way of providing a Python environment on Spider |
+| An Open OnDemand variant with modules/CVMFS is out of scope for now | Later concern |
+| Audience: HEP researchers, as an example of using Dask and RS-DAT | |
+| Lives in `UseCase_NIKHEF`, in its own folder, on branch `dask-root-blueprint` (off `main`) | Next to the existing Dask-on-HTCondor tests |
+| Develop locally on a skim of one AGC file; validate on Spider with the full files | The AGC storage (UNL, EOS) is reachable from a laptop and from Spider workers, but a full file per sample is ~30 GB |
+
+Implementation choices made while building it (open for review):
+
+| Choice | Why / alternative |
+|---|---|
+| ROOT 6.40 from conda-forge, with the stable distributed API (`ROOT.RDataFrame(..., executor=client)`) | Current ROOT; the AGC v1.0.0 code needs ROOT 6.28 and the older experimental API. Pinning an older ROOT is possible if Spider needs it |
+| Current coffea (2026.x) in the image, not the AGC's coffea 0.7 | coffea 0.7 needs awkward 1 and an old Dask, which conflict with the rest of the image |
+| Leave out the AGC's ML inference and statistical fit | Keeps the example about distributing the analysis; both can be added later |
+| Analysis code in a small `agc` package; the notebook only configures and calls it | Keeps the notebook readable and lets the coffea notebook reuse inputs and validation |
+| C++ helpers sent to workers with `DistributeCppCode` | Workers then need no access to the repository, only the image |
+| Dask workers: 4 single-threaded worker processes with 4 GiB each per Slurm job (template default: 1 worker, 2 cores, 24 GiB) | ROOT recommends one thread per worker process for distributed RDataFrame |
+| Image `oras://ghcr.io/hpc-dat/usecase_nikhef/dask-root-blueprint`, tag `latest` from `main` and the branch name otherwise | One repository can hold several images; branches can be tested without touching `latest` |
+| Workflow logs in to GHCR as the triggering user (`github.actor`) instead of a `GHCR_USERNAME` secret, and builds on the runner's `/mnt` disk | No extra secret needed; the ~4.4 GB environment does not fit on the runner's root disk |
+| Skims written as classic NanoAOD TTrees (not RNTuple, uproot's default since 5.7) | Readable by ROOT 6.28+ and coffea alike |
+| Notebook generated from `tools/build_notebook.py` | Reviewable as code; the committed notebook has no outputs |
+| Reference histograms for 1, 2, 5 and 10 files per sample included | Enough for test runs; larger references are in the AGC repositories |
+
 ## Run it locally
 
 1. Create the environment (conda, mamba or micromamba). The image merges `environment.yml` with
