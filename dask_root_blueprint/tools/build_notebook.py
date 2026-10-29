@@ -11,7 +11,9 @@ cells = [
 md("""# AGC ttbar analysis with ROOT RDataFrame on Dask
 
 This notebook runs the CMS ttbar analysis of the [Analysis Grand Challenge](https://agc.readthedocs.io) (AGC)
-with **ROOT RDataFrame**, distributed over a **Dask** cluster. The same notebook runs
+with **ROOT RDataFrame**, distributed over a **Dask** cluster. It is adapted from the ROOT team's AGC implementation
+([root-project/analysis-grand-challenge](https://github.com/root-project/analysis-grand-challenge); see the references
+at the end). The same notebook runs
 
 - **on Spider or Snellius with RS-DAT** (the default), where the Dask workers are Slurm jobs and the input files are
   read directly from the AGC storage at CERN; and
@@ -148,6 +150,14 @@ Close the client and the cluster. On RS-DAT this cancels the worker jobs; the Ju
 stop it or its walltime ends."""),
 code("""client.close()
 cluster.close()"""),
+md("""## References
+
+- A. Held, E. Kauffman, O. Shadura, A. Wightman, *Physics analysis for the HL-LHC: Concepts and pipelines in practice with the Analysis Grand Challenge*, EPJ Web of Conferences 295, 06016 (2024), [doi:10.1051/epjconf/202429506016](https://doi.org/10.1051/epjconf/202429506016).
+- V. E. Padulano, E. Guiraud, A. Falko, E. Gazzarrini, E. Garcia Garcia, D. Gosein, *First implementation and results of the Analysis Grand Challenge with a fully Pythonic RDataFrame*, EPJ Web of Conferences 295, 06011 (2024), [doi:10.1051/epjconf/202429506011](https://doi.org/10.1051/epjconf/202429506011).
+- [iris-hep/analysis-grand-challenge](https://github.com/iris-hep/analysis-grand-challenge) (AGC: analysis definition, coffea implementation, file list and reference histograms; `analyses/cms-open-data-ttbar`).
+- [root-project/analysis-grand-challenge](https://github.com/root-project/analysis-grand-challenge) (RDataFrame implementation).
+- [CMS Open Data](https://opendata.cern.ch): the CMS 2015 simulated samples behind the AGC NanoAOD files (see the [AGC documentation](https://agc.readthedocs.io) for the datasets).
+- Analysis code of this notebook: `../agc/rdf_analysis.py`; blueprint overview and Spider instructions: `../README.md`."""),
 ]
 
 nb = nbf.v4.new_notebook(cells=cells)

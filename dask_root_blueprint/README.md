@@ -217,9 +217,29 @@ comparison, as in the AGC's own validation.
   repository (Slurm jobs), `run_analysis` registers the `agc` package with `cloudpickle.register_pickle_by_value`.
 - **Next:** run notebook 02 on Spider against the AGC reference.
 
+## References
+
+Publications:
+
+- A. Held, E. Kauffman, O. Shadura, A. Wightman, *Physics analysis for the HL-LHC: Concepts and pipelines in practice with the Analysis Grand Challenge*, EPJ Web of Conferences 295, 06016 (2024), [doi:10.1051/epjconf/202429506016](https://doi.org/10.1051/epjconf/202429506016) — the Analysis Grand Challenge and the CMS ttbar analysis this blueprint implements.
+- V. E. Padulano, E. Guiraud, A. Falko, E. Gazzarrini, E. Garcia Garcia, D. Gosein, *First implementation and results of the Analysis Grand Challenge with a fully Pythonic RDataFrame*, EPJ Web of Conferences 295, 06011 (2024), [doi:10.1051/epjconf/202429506011](https://doi.org/10.1051/epjconf/202429506011) — the RDataFrame implementation that notebook 01 is adapted from.
+
+Code and data:
+
+- [iris-hep/analysis-grand-challenge](https://github.com/iris-hep/analysis-grand-challenge) (AGC: analysis definition, coffea implementation, file list and reference histograms; `analyses/cms-open-data-ttbar`); notebook 02 is adapted from its coffea implementation.
+- [root-project/analysis-grand-challenge](https://github.com/root-project/analysis-grand-challenge) (RDataFrame implementation); notebook 01 is adapted from it.
+- [CMS Open Data](https://opendata.cern.ch): the CMS 2015 simulated samples behind the AGC NanoAOD files (see the [AGC documentation](https://agc.readthedocs.io) for the datasets).
+- [AGC documentation](https://agc.readthedocs.io).
+- Tools: [ROOT RDataFrame](https://root.cern/doc/master/classROOT_1_1RDataFrame.html),
+  [coffea](https://coffea-hep.readthedocs.io), [uproot](https://uproot.readthedocs.io),
+  [awkward](https://awkward-array.org), [hist](https://hist.readthedocs.io), [Dask](https://docs.dask.org),
+  [dask-jobqueue](https://jobqueue.dask.org).
+
 ## Credits
 
 Analysis and reference histograms from the IRIS-HEP Analysis Grand Challenge
-([iris-hep/analysis-grand-challenge](https://github.com/iris-hep/analysis-grand-challenge)) and the ROOT team's
-RDataFrame implementation ([root-project/analysis-grand-challenge](https://github.com/root-project/analysis-grand-challenge),
-MIT licence). Container and Slurm scaffolding from [RS-DAT/JDS_development_template](https://github.com/RS-DAT/JDS_development_template).
+([iris-hep/analysis-grand-challenge](https://github.com/iris-hep/analysis-grand-challenge), coffea implementation)
+and the ROOT team's RDataFrame implementation
+([root-project/analysis-grand-challenge](https://github.com/root-project/analysis-grand-challenge)), both MIT licence.
+Container and Slurm scaffolding from [RS-DAT/JDS_development_template](https://github.com/RS-DAT/JDS_development_template),
+Jupyter on Slurm with [RS-DAT/JupyterDaskOnSLURM](https://github.com/RS-DAT/JupyterDaskOnSLURM).
