@@ -1,0 +1,62 @@
+# Builds the Apptainer image for dask_root_blueprint/ and pushes it to the GitHub Container Registry.
+# Based on the RS-DAT JDS_development_template workflow (.github/workflows/build.yml).
+#
+# Image: oras://ghcr.io/hpc-dat/usecase_nikhef/dask-root-blueprint:<tag>
+#   <tag> = latest on main, the branch name on other branches (e.g. dask-root-blueprint).
+
+name: Build dask-root-blueprint image
+
+on:
+  push:
+    branches:
+      - main
+      - dask-root-blueprint
+    paths:
+      - dask_root_blueprint/environment.yml
+      - dask_root_blueprint/apptainer/**
+      - .github/workflows/build-dask-root-blueprint.yml
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+
+    - name: checkout files in repo
+      uses: actions/checkout@v4
+
+    # The environment (ROOT, coffea, Jupyter, Dask) is ~4.5 GB unpacked and is packed and copied during the
+    # build, which does not fit in the runner's root disk. Build on the larger /mnt disk instead.
+    - name: use /mnt for apptainer temporary files
+      run: |
+        sudo mkdir -p /mnt/apptainer/tmp /mnt/apptainer/cache
+        sudo chown -R "$USER" /mnt/apptainer
+        echo "APPTAINER_TMPDIR=/mnt/apptainer/tmp" >> "$GITHUB_ENV"
+        echo "APPTAINER_CACHEDIR=/mnt/apptainer/cache" >> "$GITHUB_ENV"
+        df -h / /mnt
+
+    - name: setup apptainer
+      uses: eWaterCycle/setup-apptainer@v2
+
+    - name: build image
+      run: apptainer build /mnt/apptainer/container.sif dask_root_blueprint/apptainer/conda_environment.def
+
+    # container registries require lowercase names.
+    # https://github.com/orgs/community/discussions/25768
+    - name: image name and tag
+      run: |
+        echo "IMAGE=${GITHUB_REPOSITORY,,}/dask-root-blueprint" >> "$GITHUB_ENV"
+        if [ "${GITHUB_REF_NAME}" = "main" ]; then TAG=latest; else TAG="${GITHUB_REF_NAME//\//-}"; fi
+        echo "TAG=${TAG,,}" >> "$GITHUB_ENV"
+
+    # https://hsf-training.github.io/hsf-training-singularity-webpage/09-bonus-episode/index.html
+    - name: push to registry
+      run: |
+        echo ${{ secrets.GITHUB_TOKEN }} | apptainer registry login -u ${{ github.actor }} --password-stdin oras://ghcr.io
+        apptainer push /mnt/apptainer/container.sif oras://ghcr.io/${IMAGE}:${TAG}
+        echo "Pushed oras://ghcr.io/${IMAGE}:${TAG}" >> "$GITHUB_STEP_SUMMARY"

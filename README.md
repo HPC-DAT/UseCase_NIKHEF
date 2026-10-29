@@ -1,8 +1,18 @@
 # UseCase_NIKHEF
 
-Dask distributed computing on an HTCondor cluster, developed for the NIKHEF (High Energy Physics) use case.
+Dask distributed computing for the NIKHEF High Energy Physics (HEP) use case of HPC-DAT, on two kinds of clusters:
+HTCondor, and Slurm with RS-DAT (Spider/Snellius).
 
-## Repository layout
+## Contents
+
+| Folder | What |
+| --- | --- |
+| [`dask_htcondor_tests/`](dask_htcondor_tests/) | Dask on an HTCondor cluster: hello world, `HTCondorCluster` examples, JupyterLab with the Dask labextension, container definitions |
+| [`dask_root_blueprint/`](dask_root_blueprint/) | Blueprint: the AGC CMS ttbar analysis on Dask with ROOT RDataFrame and with coffea (two notebooks, identical histograms, validated against the AGC reference), runnable locally and on Spider/Snellius with RS-DAT (Jupyter + Dask on Slurm, Apptainer image built by GitHub Actions) |
+
+## Dask on HTCondor (`dask_htcondor_tests/`)
+
+### Repository layout
 
 ```text
 dask_htcondor_tests/
@@ -13,7 +23,7 @@ dask_htcondor_tests/
 └── debug/               # Interactive HTCondor job for debugging inside the container
 ```
 
-## Examples
+### Examples
 
 | Example | Where scheduler runs | How workers start |
 | --- | --- | --- |
@@ -21,7 +31,7 @@ dask_htcondor_tests/
 | [`htcondor_scheduler`](dask_htcondor_tests/htcondor_scheduler/) | Submit node | HTCondorCluster (separate client) |
 | [`jupyterdask`](dask_htcondor_tests/jupyterdask/) | Submit node (JupyterLab) | HTCondorCluster (via Dask labextension) |
 
-## Container images
+### Container images
 
 Container definitions live in [`containers/`](dask_htcondor_tests/containers/). Build once and copy to a shared path (e.g. `/scratch/hpcdat/containers/`) accessible from all nodes.
 

@@ -1,0 +1,28 @@
+# Blueprint environment: RDataFrame (ROOT) and coffea/uproot in one image.
+# Merged with apptainer/environment_default.yml (Jupyter + Dask defaults from the
+# RS-DAT JDS_development_template) when the container is built.
+name: dask_root_blueprint
+channels:
+ - conda-forge
+dependencies:
+ - python=3.12
+ # Dask
+ - dask
+ - distributed
+ # ROOT stack (RDataFrame with distributed execution on Dask)
+ - root>=6.32
+ # Python HEP stack (coffea/uproot notebook)
+ - uproot>=5
+ - awkward>=2
+ - coffea>=2025.1
+ - hist
+ - vector
+ - fsspec-xrootd
+ # plotting and utilities
+ - matplotlib
+ - mplhep
+ - numpy
+ - requests
+ - pip
+ - pip:
+   - dcachefs
