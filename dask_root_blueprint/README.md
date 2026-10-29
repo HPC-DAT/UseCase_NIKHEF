@@ -183,11 +183,11 @@ binds the host directories into the container).
 | AGC reference, 1 file per sample, ttbar nominal (22 histograms) | full first ttbar file, `LocalCluster` | all match |
 | Image build in GitHub Actions, pull on Spider | GHCR, tag `dask-root-blueprint` | OK (29 Oct) |
 | `SLURMCluster` on Spider, remote data (UNL), 1 file per sample, all 9 samples | Spider, 2 jobs × 4 workers | 104 of 124 histograms match; all 20 `single_top_s_chan` histograms empty because of the incomplete UNL file (29 Oct) |
-| Same with EOS (new default) | Spider | to run |
+| Notebook 01 from scratch with the new defaults (Slurm, EOS, 1 file per sample, all 9 samples) | Spider, `SLURMCluster` | runs end to end (29 Oct) |
 | coffea and RDataFrame give identical histograms (all regions and variations, nominal + non-nominal samples) | synthetic NanoAOD-like data, 300k events, in-process and on a Dask `LocalCluster` | identical (50/50) |
 | coffea with Dask workers that cannot import the `agc` package (as Slurm workers) | separate `dask scheduler`/`dask worker` | OK |
 | Both notebooks end to end, `LocalCluster`, `--minimal` skim | workspace with the image's environment (ROOT 6.40.04, coffea 2026.9.0) | OK, same totals |
-| Notebook 02 on Spider, EOS, all 9 samples, against the AGC reference | Spider | to run |
+| Notebook 02 with the same defaults | Spider, `SLURMCluster` | runs end to end (29 Oct) |
 
 The 4j1b/4j2b histograms that depend on the pseudo-random jet resolution smearing (`pt_res_up`) are excluded from the
 comparison, as in the AGC's own validation.
@@ -215,7 +215,8 @@ comparison, as in the AGC's own validation.
   sync when changing the analysis. coffea's `NanoAODSchema` needs `run`, `luminosityBlock`, `event` and the lepton
   `phi`/`mass`/`charge` branches, even though the analysis does not use all of them. For Dask workers without the
   repository (Slurm jobs), `run_analysis` registers the `agc` package with `cloudpickle.register_pickle_by_value`.
-- **Next:** run notebook 02 on Spider against the AGC reference.
+- **Next:** record the reference comparison of both Spider runs here; then merge `dask-root-blueprint` into `main` (switch
+  `APPTAINER_IMAGE_TAG` back to `latest`).
 
 ## References
 
