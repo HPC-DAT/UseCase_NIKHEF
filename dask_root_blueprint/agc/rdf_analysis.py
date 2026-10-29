@@ -158,9 +158,24 @@ def run_analysis(inputs: list[AGCInput], client=None, npartitions: int | None = 
 
     # All event loops run here: one pass over each sample's files fills every histogram and variation.
     (rdf_dist.RunGraphs if distributed else ROOT.RDF.RunGraphs)([b.result for b in booked])
-    if distributed and any(b.result.proxied_node.value is None for b in booked):
-        # distributed RunGraphs does not re-raise errors from its submission threads
-        raise RuntimeError("Distributed RunGraphs returned without results; check the Dask worker logs.")
+    if distributed:
+        failed = [b for b in booked if b.result.proxied_node.value is None]
+        if failed:
+            # Distributed RunGraphs does not re-raise errors from its submission threads, so nothing shows up
+            # in the notebook or the worker logs. Re-run one failed graph on its own, in this (main) thread,
+            # so the real exception is raised here.
+            b = failed[0]
+            try:
+                (b.result.GetKeys() if b.vary else b.result.GetValue())
+            except Exception as err:
+                raise RuntimeError(
+                    f"Distributed RunGraphs failed for {b.region}_{b.process}_{b.variation} "
+                    f"({len(failed)} of {len(booked)} results missing): {err}"
+                ) from err
+            raise RuntimeError(
+                f"Distributed RunGraphs returned without results for {len(failed)} of {len(booked)} histograms, "
+                "and re-running one graph alone did not fail; check the Dask worker logs."
+            )
     return _collect(booked)
 
 

@@ -13,8 +13,19 @@
 #   jupyterdask -i /path/to/ssh/key --template dask_root_blueprint/scripts/jupyterdask-spider.slurm --run <USER>@spider.surf.nl
 # Based on scripts/jupyterdask-spider.slurm in the RS-DAT JDS_development_template.
 
-# Image built by .github/workflows/build-dask-root-blueprint.yml (tag "latest" from main, or the branch name).
-APPTAINER_IMAGE="oras://ghcr.io/hpc-dat/usecase_nikhef/dask-root-blueprint:latest"
+# Image built by .github/workflows/build-dask-root-blueprint.yml: tag "latest" is only pushed from main,
+# other branches push their branch name. Set back to "latest" once dask-root-blueprint is merged to main.
+APPTAINER_IMAGE_TAG="dask-root-blueprint"
+APPTAINER_IMAGE="oras://ghcr.io/hpc-dat/usecase_nikhef/dask-root-blueprint:${APPTAINER_IMAGE_TAG}"
+# Recommended: pull the image once (on the UI node) to a local .sif. If that file exists it is used instead of
+# the registry, so the Jupyter job and every Dask worker job start fast and don't each download from ghcr.io
+# (a cold download takes longer than jupyterdask's default 120 s start-up timeout):
+#   apptainer pull ~/dask-root-blueprint.sif oras://ghcr.io/hpc-dat/usecase_nikhef/dask-root-blueprint:dask-root-blueprint
+# Re-run the pull (with --force) after a new image has been built.
+LOCAL_IMAGE="${HOME}/dask-root-blueprint.sif"
+if [ -f "${LOCAL_IMAGE}" ]; then
+  APPTAINER_IMAGE="${LOCAL_IMAGE}"
+fi
 
 # Bind all paths from host system within the container
 _DIRS=`/usr/bin/ls -1 / | /usr/bin/awk '!/dev/' | /usr/bin/sed 's/^/\//g' `
@@ -29,10 +40,12 @@ export DASK_LABEXTENSION__FACTORY__MODULE="dask_jobqueue"
 export DASK_LABEXTENSION__FACTORY__CLASS="SLURMCluster"
 export DASK_JOBQUEUE__SLURM__DEATH_TIMEOUT=60
 export DASK_JOBQUEUE__SLURM__PYTHON=${PYTHON}
+# Worker logs: absolute path, because dask-jobqueue submits worker jobs from the notebook kernel's working
+# directory (the notebook's folder), so a relative path would put them next to the notebook instead.
 # run without reservation
-export DASK_JOBQUEUE__SLURM__JOB_EXTRA_DIRECTIVES="['--output', '.jupyterdask/%x-%j.out']"
+export DASK_JOBQUEUE__SLURM__JOB_EXTRA_DIRECTIVES="['--output', '${HOME}/.jupyterdask/%x-%j.out']"
 # run with reservation
-#export DASK_JOBQUEUE__SLURM__JOB_EXTRA_DIRECTIVES="['--output', '.jupyterdask/%x-%j.out', '--reservation', '[reservation_name]']"
+#export DASK_JOBQUEUE__SLURM__JOB_EXTRA_DIRECTIVES="['--output', '${HOME}/.jupyterdask/%x-%j.out', '--reservation', '[reservation_name]']"
 # Dask workers per Slurm job: distributed RDataFrame works best with single-threaded worker processes,
 # so PROCESSES = CORES (here 4 workers of 1 thread and 4 GiB each per job).
 export DASK_JOBQUEUE__SLURM__PROCESSES=4

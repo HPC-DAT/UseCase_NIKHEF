@@ -13,9 +13,9 @@ md("""# AGC ttbar analysis with ROOT RDataFrame on Dask
 This notebook runs the CMS ttbar analysis of the [Analysis Grand Challenge](https://agc.readthedocs.io) (AGC)
 with **ROOT RDataFrame**, distributed over a **Dask** cluster. The same notebook runs
 
-- **locally**, on a Dask `LocalCluster` and a small skim of one input file, to develop and test; and
-- **on Spider or Snellius with RS-DAT**, where the Dask workers are Slurm jobs and the input files are read
-  directly from the AGC storage.
+- **on Spider or Snellius with RS-DAT** (the default), where the Dask workers are Slurm jobs and the input files are
+  read directly from the AGC storage at CERN; and
+- **locally**, on a Dask `LocalCluster` and a small skim of one input file, to develop and test.
 
 Only the cluster and the input list change between the two; the analysis code is the same.
 
@@ -29,20 +29,21 @@ With an `executor=client` argument, each graph is split into partitions (ranges 
 a Dask task, and the partial histograms are merged back in this notebook. The analysis code lives in `../agc/`."""),
 md("""## 1. Settings
 
-Change these to switch between local development and a run on the cluster."""),
+The defaults run on the Slurm cluster (RS-DAT) and read the first AGC file of every sample from CERN EOS.
+For local development, set `RUN_ON = "local"` and `DATA = "skim"`."""),
 code("""import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path.cwd().parent))  # the agc/ package next to notebooks/
 
-RUN_ON = "local"  # "local": Dask LocalCluster on this machine | "rsdat": Dask workers as Slurm jobs (RS-DAT)
+RUN_ON = "rsdat"  # "rsdat": Dask workers as Slurm jobs (RS-DAT) | "local": Dask LocalCluster on this machine
 N_WORKERS = 4      # local: single-threaded worker processes on this machine
 N_JOBS = 2         # rsdat: Slurm jobs; each runs several workers (see scripts/jupyterdask-spider.slurm)
 
-DATA = "skim"      # "skim": one local file | "remote": AGC files read over the network
+DATA = "remote"    # "remote": AGC files read over the network | "skim": one local file you downloaded
 SKIM_PATH = Path("~/dev/data/hpc-dat/agc_ttbar_skim_100k.root").expanduser()  # used when DATA == "skim"
 N_FILES_PER_SAMPLE = 1  # used when DATA == "remote": first N files of each of the 9 samples
-PREFIX = "unl"     # "unl" (HTTPS, UNL) or "eos" (root://, CERN EOS), or a URL prefix of your own copy
+PREFIX = "eos"     # "eos" (root://, CERN EOS public mirror) | "unl" (HTTPS, UNL) | URL prefix of your own copy
 
 NPARTITIONS = None  # tasks per sample; None lets ROOT choose (one per worker core)
 OUTPUT = Path("histograms.root")"""),
@@ -54,7 +55,10 @@ md("""## 2. Start a Dask cluster
 `scripts/jupyterdask-spider.slurm`. That script sets the `DASK_JOBQUEUE__SLURM__*` defaults (cores, memory,
 walltime, and the container image for the workers), so `SLURMCluster()` needs no arguments here.
 You can also create the cluster from the Dask tab in JupyterLab's sidebar and connect to it with
-`Client("tcp://...")` instead."""),
+`Client("tcp://...")` instead.
+
+Note: `cores`, `processes` and `memory` are passed to `SLURMCluster(...)` explicitly (read from that Dask config),
+because distributed RDataFrame takes the number of cores from the cluster's own arguments."""),
 code("""from distributed import Client
 
 if RUN_ON == "local":
@@ -64,7 +68,11 @@ if RUN_ON == "local":
 elif RUN_ON == "rsdat":
     import dask
     from dask_jobqueue import SLURMCluster
-    cluster = SLURMCluster()
+    # Pass cores/processes/memory explicitly (values still come from the DASK_JOBQUEUE__SLURM__* settings in the
+    # Slurm script): distributed RDataFrame reads the core count from the arguments the cluster was created with,
+    # and fails with "Could not retrieve the provided worker specification" if they are only in the Dask config.
+    slurm = dask.config.get("jobqueue.slurm")
+    cluster = SLURMCluster(cores=slurm["cores"], processes=slurm["processes"], memory=slurm["memory"])
     cluster.scale(jobs=N_JOBS)
     n_expected = N_JOBS * (dask.config.get("jobqueue.slurm.processes") or 1)
 else:
@@ -77,7 +85,7 @@ client"""),
 md("""## 3. Choose the inputs
 
 The AGC file list (`agc/data/nanoaod_inputs.json`) has 9 samples: ttbar (nominal and 4 systematic variations),
-three single-top channels and W+jets. 691 files, ~3.5 TB in total; the first file of each sample is ~30 GB.
+three single-top channels and W+jets. 691 files, ~3.5 TB in total; the first files of all 9 samples together are ~30 GB.
 RDataFrame reads only the ~20 branches the analysis needs, so far less than that goes over the network.
 
 A local skim is treated as one ttbar sample and normalised by its own number of events."""),

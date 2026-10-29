@@ -61,7 +61,8 @@ Decided by the project (Tim Kok, 28 Oct 2026):
 | An Open OnDemand variant with modules/CVMFS is out of scope for now | Later concern |
 | Audience: HEP researchers, as an example of using Dask and RS-DAT | |
 | Lives in `UseCase_NIKHEF`, in its own folder, on branch `dask-root-blueprint` (off `main`) | Next to the existing Dask-on-HTCondor tests |
-| Develop locally on a skim of one AGC file; validate on Spider with the full files | The AGC storage (UNL, EOS) is reachable from a laptop and from Spider workers, but a full file per sample is ~30 GB |
+| Develop locally on a skim of one AGC file; validate on Spider with the full files | The AGC storage (EOS, UNL) is reachable from a laptop and from Spider workers, but the first files of all samples are ~30 GB together |
+| Notebook defaults: Slurm cluster (`RUN_ON = "rsdat"`), remote data (`DATA = "remote"`) from CERN EOS (`PREFIX = "eos"`) (29 Oct 2026) | The blueprint's main use is a run on Spider/Snellius; EOS is CERN's public mirror and has complete files (one UNL file is not) |
 
 Implementation choices made while building it (open for review):
 
@@ -99,7 +100,8 @@ Implementation choices made while building it (open for review):
 
    `--minimal` keeps only the branches the analysis reads (all 1.33M events of this file fit in 180 MB).
 
-3. Open `notebooks/01_rdataframe_dask.ipynb`, set `SKIM_PATH`, and run all cells.
+3. Open `notebooks/01_rdataframe_dask.ipynb`, set `RUN_ON = "local"`, `DATA = "skim"` and `SKIM_PATH`, and run
+   all cells. (The defaults are for a run on the Slurm cluster.)
 
 ## Run it on Spider with RS-DAT
 
@@ -113,9 +115,19 @@ Implementation choices made while building it (open for review):
    log in on Spider first: `apptainer registry login -u <github-user> oras://ghcr.io` with a token that can read
    packages.
 
-2. **Slurm script.** Check `scripts/jupyterdask-spider.slurm`: the image tag (`APPTAINER_IMAGE`), partition and
+2. **Slurm script.** Check `scripts/jupyterdask-spider.slurm`: the image tag (`APPTAINER_IMAGE_TAG`), partition and
    walltime, and the worker settings (`DASK_JOBQUEUE__SLURM__*`). The defaults give each Dask job 4 single-threaded
    workers with 4 GiB each. Put a dCache macaroon in a local copy only, never in the repository.
+
+   Pull the image once to `~/dask-root-blueprint.sif` on the Spider login node; the script then uses that file instead
+   of downloading the ~1.3 GB image at every job start (a cold download can take longer than jupyterdask's 120 s
+   start-up timeout):
+
+   ```bash
+   apptainer pull ~/dask-root-blueprint.sif oras://ghcr.io/hpc-dat/usecase_nikhef/dask-root-blueprint:dask-root-blueprint
+   ```
+
+   Repeat with `--force` after a new image build. Jupyter and Dask worker logs are written to `~/.jupyterdask/`.
 
 3. **Start Jupyter** with the [jupyterdask](https://github.com/RS-DAT/JupyterDaskOnSLURM) CLI, from a clone of this
    repository on your machine:
@@ -125,15 +137,18 @@ Implementation choices made while building it (open for review):
    ```
 
 4. **Run the notebook.** In JupyterLab, clone this repository (git extension) or open an existing clone on Spider, then
-   in `01_rdataframe_dask.ipynb` set `RUN_ON = "rsdat"`, `N_JOBS`, `DATA = "remote"` and `N_FILES_PER_SAMPLE = 1`.
-   With one file per sample (9 files) the validation cell compares all histograms with the AGC reference.
-   `N_FILES_PER_SAMPLE = None` processes all 691 files.
+   open `01_rdataframe_dask.ipynb`. The defaults already run on the Slurm cluster with remote data from CERN EOS and one
+   file per sample (9 files); adjust `N_JOBS` if needed and run all cells. With one file per sample the validation
+   cell compares all histograms with the AGC reference. `N_FILES_PER_SAMPLE = None` processes all 691 files.
 
-Spider worker nodes can reach the UNL endpoint directly (checked from the login node; worker nodes have no outbound
-restrictions). If TLS verification fails there, set `X509_CERT_DIR=/etc/grid-security/certificates` (the Slurm script
-binds the host directories into the container), or use `PREFIX = "eos"`.
+Spider worker nodes read the files directly from CERN EOS over `root://`. The message
+`TLS: Unable to use cert+key file …/.proxy; does not exist` is harmless: XRootD looks for a grid proxy first and then
+reads `eospublic` anonymously. `PREFIX = "unl"` reads the same files over HTTPS from UNL, but the first
+`single_top_s_chan` file there has only 100 of its 632000 events (found 29 Oct 2026), so that sample does not match the
+reference. If TLS verification fails for HTTPS, set `X509_CERT_DIR=/etc/grid-security/certificates` (the Slurm script
+binds the host directories into the container).
 
-## Validation status (28 Oct 2026)
+## Validation status (29 Oct 2026)
 
 | Check | Where | Result |
 |---|---|---|
@@ -141,8 +156,9 @@ binds the host directories into the container), or use `PREFIX = "eos"`.
 | Notebook end to end, `LocalCluster`, 100k-event skim | laptop-class machine, 2 workers | OK |
 | Local and distributed runs give identical histograms | 10k skim | OK |
 | AGC reference, 1 file per sample, ttbar nominal (22 histograms) | full first ttbar file, `LocalCluster` | all match |
-| Image build in GitHub Actions | | not yet run |
-| `SLURMCluster` on Spider, remote data, all 9 samples | | not yet run |
+| Image build in GitHub Actions, pull on Spider | GHCR, tag `dask-root-blueprint` | OK (29 Oct) |
+| `SLURMCluster` on Spider, remote data (UNL), 1 file per sample, all 9 samples | Spider, 2 jobs × 4 workers | 104 of 124 histograms match; all 20 `single_top_s_chan` histograms empty because of the incomplete UNL file (29 Oct) |
+| Same with EOS (new default) | Spider | to run |
 
 The 4j1b/4j2b histograms that depend on the pseudo-random jet resolution smearing (`pt_res_up`) are excluded from the
 comparison, as in the AGC's own validation.
@@ -151,6 +167,13 @@ comparison, as in the AGC's own validation.
 
 - **ROOT version.** The code uses the stable distributed API of ROOT ≥ 6.36 (`ROOT.RDataFrame(..., executor=client)`,
   `ROOT.RDF.Distributed.*`). The AGC v1.0.0 code uses the older `ROOT.RDF.Experimental.Distributed.Dask.RDataFrame`.
+- **`SLURMCluster` arguments (ROOT 6.40).** Distributed RDataFrame reads the number of cores from the arguments a
+  dask-jobqueue cluster was created with (`cluster.worker_spec[...]["options"]["cores"]`). With `SLURMCluster()` and the
+  values only in the Dask config this fails with *Could not retrieve the provided worker specification*, even when
+  `npartitions` is set. The notebook therefore passes `cores`, `processes` and `memory` explicitly (from the Dask config).
+  Worth reporting to root-project/root.
+- **Errors in distributed `RunGraphs`** are not re-raised. If results are missing, `run_analysis` re-runs one failed
+  graph on its own so the real exception appears in the notebook.
 - **dask-jobqueue import (ROOT 6.40).** Distributed `RunGraphs` imports `dask_jobqueue` from a background thread, and
   `dask_jobqueue` sets a signal handler on import, which fails outside the main thread. `RunGraphs` swallows the error
   and returns no results. `agc/rdf_analysis.py` imports `dask_jobqueue` up front and checks that results came back.

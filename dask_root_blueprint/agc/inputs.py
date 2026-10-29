@@ -17,8 +17,10 @@ REFERENCE_DIR = DATA_DIR / "reference"
 # Prefix used in nanoaod_inputs.json, and known mirrors of the same files.
 UNL_HTTPS = "https://xrootd-local.unl.edu:1094//store/user/AGC"
 PREFIXES = {
-    "unl": UNL_HTTPS,  # HTTPS via XRootD at UNL (works from Spider workers)
-    "eos": "root://eospublic.cern.ch//eos/root-eos/AGC",  # CERN EOS public mirror
+    "eos": "root://eospublic.cern.ch//eos/root-eos/AGC",  # CERN EOS public mirror (default)
+    # HTTPS via XRootD at UNL. Note (29 Oct 2026): the first single_top_s_chan file there has only 100 of its
+    # 632000 events, so the AGC reference comparison fails for that sample; EOS has the complete file.
+    "unl": UNL_HTTPS,
 }
 
 # Cross sections in pb, as in the AGC reference implementations.
@@ -46,14 +48,14 @@ class AGCInput:
 
 def remote_inputs(
     n_files_per_sample: int | None = 1,
-    prefix: str = "unl",
+    prefix: str = "eos",
     processes: list[str] | None = None,
     variations: list[str] | None = None,
 ) -> list[AGCInput]:
-    """Inputs read directly from the AGC storage (UNL or EOS).
+    """Inputs read directly from the AGC storage (CERN EOS or UNL).
 
     n_files_per_sample: first N files of every process/variation (None = all 691 files, ~3.5 TB).
-    prefix: "unl", "eos", or any replacement for the UNL prefix (e.g. a dCache WebDAV URL of a copy).
+    prefix: "eos" (default), "unl", or any replacement for the UNL prefix (e.g. a dCache WebDAV URL of a copy).
     """
     new_prefix = PREFIXES.get(prefix, prefix)
     spec = json.loads(INPUTS_JSON.read_text())
