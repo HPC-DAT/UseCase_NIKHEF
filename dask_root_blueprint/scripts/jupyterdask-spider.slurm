@@ -13,14 +13,14 @@
 #   jupyterdask -i /path/to/ssh/key --template dask_root_blueprint/scripts/jupyterdask-spider.slurm --run <USER>@spider.surf.nl
 # Based on scripts/jupyterdask-spider.slurm in the RS-DAT JDS_development_template.
 
-# Image built by .github/workflows/build-dask-root-blueprint.yml: tag "latest" is only pushed from main,
-# other branches push their branch name. Set back to "latest" once dask-root-blueprint is merged to main.
-APPTAINER_IMAGE_TAG="dask-root-blueprint"
+# Image built by .github/workflows/build-dask-root-blueprint.yml: tag "latest" is pushed from main,
+# other branches push their branch name (e.g. "dask-root-blueprint") for testing before a merge.
+APPTAINER_IMAGE_TAG="latest"
 APPTAINER_IMAGE="oras://ghcr.io/hpc-dat/usecase_nikhef/dask-root-blueprint:${APPTAINER_IMAGE_TAG}"
 # Recommended: pull the image once (on the UI node) to a local .sif. If that file exists it is used instead of
 # the registry, so the Jupyter job and every Dask worker job start fast and don't each download from ghcr.io
 # (a cold download takes longer than jupyterdask's default 120 s start-up timeout):
-#   apptainer pull ~/dask-root-blueprint.sif oras://ghcr.io/hpc-dat/usecase_nikhef/dask-root-blueprint:dask-root-blueprint
+#   apptainer pull ~/dask-root-blueprint.sif oras://ghcr.io/hpc-dat/usecase_nikhef/dask-root-blueprint:latest
 # Re-run the pull (with --force) after a new image has been built.
 LOCAL_IMAGE="${HOME}/dask-root-blueprint.sif"
 if [ -f "${LOCAL_IMAGE}" ]; then
