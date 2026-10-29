@@ -1,0 +1,14 @@
+Bootstrap: docker
+From: python:3.12-slim
+
+%post
+    pip install --no-cache-dir \
+        dask[distributed] \
+        dask-jobqueue \
+        numpy
+    # python:3.12-slim puts Python at /usr/local/bin/python3; HTCondor submit
+    # nodes typically expect /usr/bin/python3 — add a symlink for compatibility.
+    ln -sf /usr/local/bin/python3 /usr/bin/python3
+
+%labels
+    Description Dask HTCondor hello-world worker image
