@@ -6,7 +6,8 @@ Keeps the first N events and a subset of branches, written as a classic NanoAOD-
   python make_agc_skim.py INPUT OUTPUT [--events N] [--minimal]
 
   --events N   keep the first N events (default: all)
-  --minimal    keep only the branches the AGC ttbar analysis reads (smallest file);
+  --minimal    keep only the branches the AGC ttbar analysis reads, plus the event IDs and lepton kinematics that
+               coffea's NanoAOD schema needs (smallest file);
                default keeps the full Jet, Muon and Electron collections plus MET, PV, flags and a few triggers.
 
 Needs uproot >= 5 and awkward >= 2. INPUT can be a local path or an https:// / root:// URL.
@@ -19,11 +20,13 @@ import awkward as ak
 import uproot
 
 COLLECTIONS = ["Jet", "Muon", "Electron"]
+# coffea's NanoAODSchema also needs phi, mass and charge for leptons, and run/luminosityBlock/event.
 MINIMAL = {
     "Jet": ["pt", "eta", "phi", "mass", "btagCSVV2", "jetId"],
-    "Muon": ["pt", "eta", "sip3d", "tightId", "pfRelIso04_all"],
-    "Electron": ["pt", "eta", "sip3d", "cutBased"],
+    "Muon": ["pt", "eta", "phi", "mass", "charge", "sip3d", "tightId", "pfRelIso04_all"],
+    "Electron": ["pt", "eta", "phi", "mass", "charge", "sip3d", "cutBased"],
 }
+MINIMAL_SCALARS = ["run", "luminosityBlock", "event"]
 EVENT_BRANCHES = {"run", "luminosityBlock", "event", "genWeight", "PV_npvs", "PV_npvsGood", "fixedGridRhoFastjetAll"}
 TRIGGERS = {"HLT_IsoMu24", "HLT_IsoMu27", "HLT_Ele27_WPTight_Gsf", "HLT_Ele32_WPTight_Gsf"}
 STEP = 100_000  # events per chunk
@@ -43,7 +46,7 @@ def main():
     keys = tree.keys()
 
     if args.minimal:
-        scalars = ["event"]
+        scalars = MINIMAL_SCALARS
         fields = {c: [f"{c}_{f}" for f in fs] for c, fs in MINIMAL.items()}
     else:
         scalars = [k for k in keys if k in EVENT_BRANCHES | TRIGGERS or k.startswith(("MET_", "Flag_"))]

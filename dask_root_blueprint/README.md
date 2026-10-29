@@ -1,12 +1,17 @@
-# Dask/ROOT blueprint: AGC ttbar analysis with RDataFrame on Dask
+# Dask/ROOT blueprint: AGC ttbar analysis with RDataFrame and coffea on Dask
 
 A worked example of a HEP analysis on Dask that runs the same way on a laptop and on SURF's Spider or Snellius
 with the [RS-DAT](https://github.com/RS-DAT) tools (Jupyter + Dask on Slurm, in an Apptainer container).
 
 The analysis is the CMS ttbar analysis of the [Analysis Grand Challenge](https://agc.readthedocs.io) (AGC), on public
-CMS 2015 Open Data in NanoAOD format, implemented with ROOT RDataFrame and distributed over Dask. It is adapted from
-the [ROOT team's AGC implementation](https://github.com/root-project/analysis-grand-challenge) and validated against
-the AGC reference histograms.
+CMS 2015 Open Data in NanoAOD format, distributed over Dask, in two versions that give identical histograms:
+
+- **ROOT RDataFrame** (`notebooks/01_rdataframe_dask.ipynb`), adapted from the
+  [ROOT team's AGC implementation](https://github.com/root-project/analysis-grand-challenge);
+- **coffea** (uproot + awkward + hist, no ROOT needed; `notebooks/02_coffea_dask.ipynb`), adapted from the
+  [IRIS-HEP AGC coffea implementation](https://github.com/iris-hep/analysis-grand-challenge).
+
+Both are validated against the AGC reference histograms, and run from the same container image.
 
 Audience: HEP researchers who want to move an analysis from a single machine to a Dask cluster on Slurm.
 
@@ -14,10 +19,13 @@ Audience: HEP researchers who want to move an analysis from a single machine to 
 
 ```text
 dask_root_blueprint/
-├── notebooks/01_rdataframe_dask.ipynb   # the blueprint: settings → Dask cluster → inputs → run → plots → validation
+├── notebooks/
+│   ├── 01_rdataframe_dask.ipynb         # the blueprint with RDataFrame: settings → Dask cluster → inputs → run → plots → validation
+│   └── 02_coffea_dask.ipynb             # the same with coffea (same sections, same inputs and validation)
 ├── agc/
 │   ├── inputs.py                        # AGC file list, cross sections, normalisation, local skims
 │   ├── rdf_analysis.py                  # event selection, systematics and histograms with RDataFrame
+│   ├── coffea_analysis.py               # the same with coffea: an AGCProcessor run by a coffea Runner on Dask
 │   ├── helpers.h                        # C++ helpers used in the RDataFrame expressions (from the AGC)
 │   ├── validation.py                    # comparison with AGC reference histograms, plots (uproot, no ROOT needed)
 │   └── data/                            # nanoaod_inputs.json (691 files) and reference histograms (1, 2, 5, 10 files)
@@ -26,7 +34,8 @@ dask_root_blueprint/
 ├── scripts/jupyterdask-spider.slurm     # Slurm job for jupyterdask: Jupyter server + Dask worker settings
 └── tools/
     ├── make_agc_skim.py                 # make a small local copy of an AGC file for development
-    └── build_notebook.py                # regenerates the notebook (kept as code for review)
+    ├── build_notebook.py                # regenerates notebook 01 (kept as code for review)
+    └── build_coffea_notebook.py         # regenerates notebook 02
 ```
 
 The image workflow lives at the repository root: `.github/workflows/build-dask-root-blueprint.yml`.
@@ -39,7 +48,20 @@ variations (`Vary`) and histograms. Nothing is read until the graphs run. When t
 partition becomes a Dask task, and the partial histograms are merged back in the notebook. All samples run together
 with `RunGraphs`, so the cluster is kept busy across samples.
 
-Switching between laptop and cluster changes only two settings in the notebook:
+**coffea** works chunk by chunk instead: a *processor* (`AGCProcessor`) turns one chunk of events into histograms,
+using NanoEvents (`events.Jet`, `events.Electron`, ...) and awkward array operations. A coffea `Runner` with a
+`DaskExecutor` splits the files into chunks of `CHUNKSIZE` events, runs the processor on every chunk as a Dask task,
+and adds up the histograms. Jet pT variations re-run the selection; weight variations reuse it.
+
+| | RDataFrame (notebook 01) | coffea (notebook 02) |
+|---|---|---|
+| Analysis written as | lazy dataframe graph (C++ expressions, JIT-compiled) | Python function on awkward arrays per chunk |
+| Unit of work on Dask | partition (range of entries) per sample | chunk of `CHUNKSIZE` events per file |
+| Systematic variations | `Vary` + `VariationsFor` | loops over jet pT variations and weight variations |
+| Reads ROOT files with | ROOT (TTree, XRootD/Davix built in) | uproot (+ fsspec-xrootd for `root://`) |
+| Code on the workers | C++ helpers sent with `DistributeCppCode` | `agc` package sent with the processor (cloudpickle by value) |
+
+Switching between laptop and cluster changes only two settings in either notebook:
 
 | | Local development | RS-DAT on Spider/Snellius |
 |---|---|---|
@@ -54,7 +76,7 @@ Decided by the project (Tim Kok, 28 Oct 2026):
 | Decision | Why / notes |
 |---|---|
 | Base the blueprint on the AGC CMS ttbar analysis | Public data, a well-known HEP workload, and published reference histograms to validate against |
-| RDataFrame first; a coffea/uproot notebook later | Both stacks are common in HEP; start with one and keep the same inputs and validation for the second |
+| RDataFrame first; a coffea/uproot notebook later | Both stacks are common in HEP; start with one and keep the same inputs and validation for the second (coffea notebook added 29 Oct 2026) |
 | One "fat" container image with both stacks, separate notebooks per approach | One image to build and maintain on Spider/Snellius; researchers pick the notebook that matches their stack |
 | Notebook-based, connecting to the Dask cluster that RS-DAT provides | RS-DAT runs Jupyter and the Dask scheduler as a Slurm job; users scale the cluster from Jupyter and work in notebooks |
 | Build the image with the RS-DAT JDS_development_template scaffolding (GitHub Actions → Apptainer image on GHCR) | Standard RS-DAT way of providing a Python environment on Spider |
@@ -72,6 +94,8 @@ Implementation choices made while building it (open for review):
 | Current coffea (2026.x) in the image, not the AGC's coffea 0.7 | coffea 0.7 needs awkward 1 and an old Dask, which conflict with the rest of the image |
 | Leave out the AGC's ML inference and statistical fit | Keeps the example about distributing the analysis; both can be added later |
 | Analysis code in a small `agc` package; the notebook only configures and calls it | Keeps the notebook readable and lets the coffea notebook reuse inputs and validation |
+| coffea notebook in the classic processor style (`ProcessorABC` + `Runner` + `DaskExecutor`) | The API of the coffea 2026.x in the image (it no longer uses dask-awkward); the same structure as the AGC coffea implementation |
+| coffea code reproduces the RDataFrame numerics (float32 factors, float64 weights, same pseudo-random jet smearing) | Both notebooks give bin-for-bin identical histograms, so one reference and one validation serve both |
 | C++ helpers sent to workers with `DistributeCppCode` | Workers then need no access to the repository, only the image |
 | Dask workers: 4 single-threaded worker processes with 4 GiB each per Slurm job (template default: 1 worker, 2 cores, 24 GiB) | ROOT recommends one thread per worker process for distributed RDataFrame |
 | Image `oras://ghcr.io/hpc-dat/usecase_nikhef/dask-root-blueprint`, tag `latest` from `main` and the branch name otherwise | One repository can hold several images; branches can be tested without touching `latest` |
@@ -98,10 +122,11 @@ Implementation choices made while building it (open for review):
    python dask_root_blueprint/tools/make_agc_skim.py ttbar_0000.root agc_ttbar_skim_100k.root --events 100000
    ```
 
-   `--minimal` keeps only the branches the analysis reads (all 1.33M events of this file fit in 180 MB).
+   `--minimal` keeps only the branches the analysis reads, plus the event IDs and lepton fields coffea's NanoAOD
+   schema needs (the analysis branches of all 1.33M events of this file are 180 MB; the extra fields add a little).
 
-3. Open `notebooks/01_rdataframe_dask.ipynb`, set `RUN_ON = "local"`, `DATA = "skim"` and `SKIM_PATH`, and run
-   all cells. (The defaults are for a run on the Slurm cluster.)
+3. Open `notebooks/01_rdataframe_dask.ipynb` or `notebooks/02_coffea_dask.ipynb`, set `RUN_ON = "local"`,
+   `DATA = "skim"` and `SKIM_PATH`, and run all cells. (The defaults are for a run on the Slurm cluster.)
 
 ## Run it on Spider with RS-DAT
 
@@ -159,6 +184,10 @@ binds the host directories into the container).
 | Image build in GitHub Actions, pull on Spider | GHCR, tag `dask-root-blueprint` | OK (29 Oct) |
 | `SLURMCluster` on Spider, remote data (UNL), 1 file per sample, all 9 samples | Spider, 2 jobs × 4 workers | 104 of 124 histograms match; all 20 `single_top_s_chan` histograms empty because of the incomplete UNL file (29 Oct) |
 | Same with EOS (new default) | Spider | to run |
+| coffea and RDataFrame give identical histograms (all regions and variations, nominal + non-nominal samples) | synthetic NanoAOD-like data, 300k events, in-process and on a Dask `LocalCluster` | identical (50/50) |
+| coffea with Dask workers that cannot import the `agc` package (as Slurm workers) | separate `dask scheduler`/`dask worker` | OK |
+| Both notebooks end to end, `LocalCluster`, `--minimal` skim | workspace with the image's environment (ROOT 6.40.04, coffea 2026.9.0) | OK, same totals |
+| Notebook 02 on Spider, EOS, all 9 samples, against the AGC reference | Spider | to run |
 
 The 4j1b/4j2b histograms that depend on the pseudo-random jet resolution smearing (`pt_res_up`) are excluded from the
 comparison, as in the AGC's own validation.
@@ -182,7 +211,11 @@ comparison, as in the AGC's own validation.
 - **C++ helpers** are sent to the workers with `ROOT.RDF.Distributed.DistributeCppCode`, so workers need no access to
   the repository.
 - **Not included** from the AGC: the ML inference step and the statistical fit.
-- **Next:** a coffea/uproot notebook on the same inputs and validation, in the same image.
+- **coffea notebook.** The processor (`agc/coffea_analysis.py`) mirrors `rdf_analysis.py` step by step; keep them in
+  sync when changing the analysis. coffea's `NanoAODSchema` needs `run`, `luminosityBlock`, `event` and the lepton
+  `phi`/`mass`/`charge` branches, even though the analysis does not use all of them. For Dask workers without the
+  repository (Slurm jobs), `run_analysis` registers the `agc` package with `cloudpickle.register_pickle_by_value`.
+- **Next:** run notebook 02 on Spider against the AGC reference.
 
 ## Credits
 
